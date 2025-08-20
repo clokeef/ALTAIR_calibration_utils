@@ -1,15 +1,18 @@
 #import necessary packages
-import numpy as np
+import numpy as nphttps://github.com/clokeef/ALTAIR_calibration_utils/edit/main/beacon.py
 from colour import sd_mesopic_luminous_efficiency_function
+from calibration_utils.utils import check_err
 
 def get_flux(lums, peaks, bandpass, err=True):
     """
-    determine the peak radiant intensity of the light source
-    :param lums: array of the luminous radiance and error of the components of the light source
-    :param peak: list of the peak wavelengths of the components of the light source
-    :param bandpass: array of the bandpass in each filter at each peak wavelength of the components of the light source
-    :param err: boolean to indicate if the error is returned
-    :return: peak radiant intensity of the light source
+    determine the peak radiant intensity of a light source which is some array of known LEDs
+    Args:
+        lums: array of the luminous radiance and error of the components of the light source
+        peaks: list of the peak wavelengths of the components of the light source
+        bandpass: array of the bandpass in each filter at each peak wavelength of the components of the light source
+        err: boolean to indicate if the error is returned
+
+    Returns: peak radiant intensity of the light source and uncertainty if indicated
     """
     lum, lum_err = check_err(lums, tuple, np.ndarray)
     peak, peak_err = check_err(peaks, tuple, np.ndarray)
@@ -38,11 +41,13 @@ def get_flux(lums, peaks, bandpass, err=True):
 
 def get_F0(band_pass, peaks, err = True):
     """
-    get the flux zero-point in the AB magnitude system for the light source array
-    :param band_pass: array of the bandpass at each peak wavelength of the components of the light source
-    :param peaks: array of the peak wavelengths and error of the components of the light source
-    :param err: boolean to indicate if the error is returned
-    :return: flux zero-point in the AB magnitude system
+    get the flux zero-point in the AB magnitude system for a light source array
+    Args:
+        band_pass: array of the bandpass at each peak wavelength of the components of the light source
+        peaks: array of the peak wavelengths and error of the components of the light source
+        err: boolean to indicate if the error is returned
+
+    Returns: flux zero-point in the AB magnitude system
     """
     peak, peak_err = check_err(peaks, tuple, np.ndarray)
 
@@ -62,14 +67,16 @@ def get_F0(band_pass, peaks, err = True):
 
 def get_Fmeas(peak_rad, theta, dist, delta_t, exp_time, err = True):
     """
-    calculates the measured flux at the observer
-    :param peak_rad: peak radiant intensity of the light source
-    :param theta: separation angle
-    :param dist: distance to the light source
-    :param delta_t: time length of the pulse which produces the measured streak
-    :param exp_time: exposure time of the image
-    :param err: boolean to indicate if error is returned
-    :return: measured flux at observer
+    calculates the measured flux of the light source array at the observer
+    Args:
+        peak_rad: peak radiant intensity of the light source
+        theta: separation angle
+        dist: distance to the light source
+        delta_t: time length of the pulse which produces the measured streak
+        exp_time: exposure time of the image
+        err: boolean to indicate if error is returned
+
+    Returns: measured flux at observer
     """
     peak_rad_val,peak_rad_err = check_err(peak_rad, float, tuple)
     theta_val, theta_err = check_err(theta, float, tuple)
@@ -95,12 +102,14 @@ def get_Fmeas(peak_rad, theta, dist, delta_t, exp_time, err = True):
 
 def get_magzero(F_meas, F0, count, err=True):
     """
-    calculates the magnitude zero-point given a known magnitude and recorded counts for image callibration
-    :param F_meas: measured flux at the observer
-    :param F0: flux zero-point in the AB magnitude system
-    :param count: recorded counts from photometry
-    :param err: boolean to indicate if error is returned
-    :return: calibrated magnitude zero-point
+    calculates the magnitude zero-point given a known magnitude and recorded counts for image calibration
+    Args:
+        F_meas: measured flux at the observer
+        F0: flux zero-point in the AB magnitude system
+        count: recorded counts from photometry
+        err: boolean to indicate if error is returned
+
+    Returns: calibrated magnitude zero-point
     """
     F_meas_val, F_meas_err = check_err(F_meas, float, tuple)
     F0_val, F0_err = check_err(F0, float, tuple)
@@ -117,3 +126,4 @@ def get_magzero(F_meas, F0, count, err=True):
     if err == False:
 
         return mag_zero
+
