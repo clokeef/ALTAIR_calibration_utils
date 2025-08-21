@@ -9,31 +9,33 @@ from astropy.time import Time
 from astropy.wcs import WCS
 import astropy.wcs.utils as wcsutils
 from astropy import units
-from astropy.coordinates import AltAz, EarthLocation, SkyCoord, get_body, get_sun
+from astropy.coordinates import AltAz, EarthLocation
 
-from utils import *
+from calibration_utils.utils import *
 
 #global variables
 R = 6371 #radius of the Earth in km
 
-def get_geod(obs_coords, sat_coords, err=True):
+def get_geod(obs_coords, ls_coords, err=True):
     """
     determine the geodesic distance between two coordinate points
-    :param obs_coords: array of the observer coordinates and uncertainty for lat and lon
-    :param sat_coords: array of the light source coordinates and uncertainty for lat and lon
-    :param err: boolean which determines if the error is determined
-    :return: the geodesic distance between these two points
+    Args:
+        obs_coords: array of the observer coordinates and uncertainty for lat and lon
+        ls_coords: array of the light source coordinates and uncertainty for lat and lon
+        err: boolean which determines if the error is determined
+
+    Returns: geodesic distance between these two points
     """
     obs_coords_val, obs_coords_err = check_err(obs_coords, tuple, np.ndarray)
 
-    sat_coords_val, sat_coords_err = check_err(sat_coords, tuple, np.ndarray)
+    ls_coords_val, ls_coords_err = check_err(ls_coords, tuple, np.ndarray)
 
 
-    geod = distance.distance(sat_coords_val, obs_coords_val).km
+    geod = distance.distance(ls_coords_val, obs_coords_val).km
 
     if err == True:
 
-        max_geod, min_geod = get_geod_err(obs_coords_val, sat_coords_val, obs_coords_err, sat_coords_err)
+        max_geod, min_geod = get_geod_err(obs_coords_val, ls_coords_val, obs_coords_err, ls_coords_err)
 
         geod_minus = (geod-min_geod)
         geod_plus = (geod-max_geod)
@@ -47,16 +49,18 @@ def get_geod(obs_coords, sat_coords, err=True):
 
 def get_alpha(x_pix, y_pix, wcs, obs_coords, obs_time, utc = True, time_zone = 0, err = True):
     """
-    converts the pixel location of the light source into the local altitude angle, alpha
-    :param x_pix: centre location of light source in x
-    :param y_pix: centre location of light source in y
-    :param wcs: wcs file from astrometry.net plat solution
-    :param obs_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the observer
-    :param obs_time: time of observation
-    :param utc: boolean to indicate is the observation time is given in UTC, default is True
-    :param time_zone: int of the time zone offset, default is 0
-    :param err: boolean to indicate if the error is returned
-    :return: local altitude angle in degrees
+    converts the pixel location of the light source on an image with an associatged wcs file into the local altitude angle, alpha
+    Args:
+        x_pix: centre location of light source in x
+        y_pix: centre location of light source in y
+        wcs: wcs file from astrometry.net plate solution
+        obs_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the observer
+        obs_time: time of observation
+        utc: boolean to indicate is the observation time is given in UTC, default is True
+        time_zone: int of the time zone offset, default is 0
+        err: boolean to indicate if the error is returned
+
+    Returns: local altitude angle in degrees
     """
     x_pix_val, x_pix_err = check_err(x_pix, float, tuple)
 
@@ -113,17 +117,19 @@ def get_alpha(x_pix, y_pix, wcs, obs_coords, obs_time, utc = True, time_zone = 0
 
         return alpha.value
 
-def get_alt(obs_coords, sat_coords, alpha, err = True):
+def get_alt(obs_coords, ls_coords, alpha, err = True):
     """
     get the altitude in km of the light source
-    :param obs_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the observer
-    :param sat_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the light source
-    :param alpha: local horizontal altitude angle in degrees
-    :param err: boolean to indicate if error is returned
-    :return: altitude in km of the light source
-    """
 
-    b = get_geod(obs_coords, sat_coords, err = err)
+    Args:
+        obs_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the observer
+        ls_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the light source
+        alpha: local horizontal altitude angle in degrees
+        err: boolean to indicate if error is returned
+
+    Returns: altitude in km of the light source
+    """
+    b = get_geod(obs_coords, ls_coords, err = err)
 
     b_val, b_err = check_err(b, float, tuple)
     alpha_val, alpha_err = check_err(alpha, float, tuple)
@@ -143,16 +149,18 @@ def get_alt(obs_coords, sat_coords, alpha, err = True):
     if err == False:
         return a
 
-def get_sepdist(obs_coords, sat_coords, alpha, err = True):
+def get_sepdist(obs_coords, ls_coords, alpha, err = True):
     """
     get the separation distance between the observer and light source
-    :param obs_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the observer
-    :param sat_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the light source
-    :param alpha: local horizontal altitude angle in degrees
-    :param err: boolean to indicate if the error is returned
-    :return: separation distance between the observer and light source
+    Args:
+        obs_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the observer
+        ls_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the light source
+        alpha: local horizontal altitude angle in degrees
+        err: boolean to indicate if the error is returned
+    
+    Returns: separation distance between the observer and light source
     """
-    alt = get_alt(obs_coords, sat_coords, alpha, err = err)
+    alt = get_alt(obs_coords, ls_coords, alpha, err = err)
 
     alpha_val, alpha_err = check_err(alpha, float, tuple)
     alt_val, alt_err = check_err(alt, float, tuple)
@@ -174,16 +182,18 @@ def get_sepdist(obs_coords, sat_coords, alpha, err = True):
 
 
 
-def get_nadir(obs_coords, sat_coords, alpha, err = True):
+def get_nadir(obs_coords, ls_coords, alpha, err = True):
     """
     get the angle between the light source nadir and the line of sight to the observer
-    :param obs_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the observer
-    :param sat_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the light source
-    :param alpha: local horizontal altitude angle in degrees
-    :param err: boolean to indicate if the error is returned
-    :return: angle between the light source nadir and the line of sight
+    Args:
+        obs_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the observer
+        ls_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the light source
+        alpha: local horizontal altitude angle in degrees
+        err: boolean to indicate if the error is returned
+    
+    Returns: angle between the light source nadir and the line of sight
     """
-    d = get_sepdist(obs_coords, sat_coords, alpha, err = err)
+    d = get_sepdist(obs_coords, ls_coords, alpha, err = err)
 
     alpha_val, alpha_err = check_err(alpha, float, tuple)
     d_val, d_err = check_err(d, float, tuple)
@@ -204,26 +214,28 @@ def get_nadir(obs_coords, sat_coords, alpha, err = True):
         return nadir
 
 
-def get_gamma(obs_coords, sat_coords, err = True):
+def get_gamma(obs_coords, ls_coords, err = True):
     """
     get the rotation angle, gamma, of the line of sight from the light source x-axis
-    :param obs_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the observer
-    :param sat_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the light source
-    :param err: boolean to indicate if the error is returned
-    :return: rotation angle, gamma, of the line of sight
+    Args:
+        obs_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the observer
+        ls_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the light source
+        err: boolean to indicate if the error is returned
+    
+    Returns: rotation angle, gamma, of the line of sight
     """
     obs_coords_val, obs_coords_err = check_err(obs_coords, tuple, np.ndarray)
-    sat_coords_val, sat_coords_err = check_err(sat_coords, tuple, np.ndarray)
+    ls_coords_val, ls_coords_err = check_err(ls_coords, tuple, np.ndarray)
 
     lambda_1 = obs_coords_val[0]
     lambda_1_err = obs_coords_err[0]
     phi_1 = obs_coords_val[1]
     phi_1_err = obs_coords_err[1]
 
-    lambda_2 = sat_coords_val[0]
-    lambda_2_err = sat_coords_err[0]
-    phi_2 = sat_coords_val[1]
-    phi_2_err = sat_coords_err[1]
+    lambda_2 = ls_coords_val[0]
+    lambda_2_err = ls_coords_err[0]
+    phi_2 = ls_coords_val[1]
+    phi_2_err = ls_coords_err[1]
 
     del_lambda = lambda_2 - lambda_1
     del_phi = phi_2 - phi_1
@@ -268,19 +280,21 @@ def get_gamma(obs_coords, sat_coords, err = True):
         return gamma
 
 
-def get_sepangle(obs_coords, sat_coords, alpha, pitch, roll, err = True):
+def get_sepangle(obs_coords, ls_coords, alpha, pitch, roll, err = True):
     """
     get the angle between the pointing of the light source and the line of sight to the observer
-    :param obs_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the observer
-    :param sat_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the light source
-    :param alpha: local horizontal altitude angle in degrees
-    :param pitch: pitch angle of the light source in degrees
-    :param roll: roll angle of the light source in degrees
-    :param err: boolean to indicate if the error is returned
-    :return: separation angle
+    Args:
+        obs_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the observer
+        ls_coords: coordinates in [(lat,lon),(lat_err,lon_err)] of the light source
+        alpha: local horizontal altitude angle in degrees
+        pitch: pitch angle of the light source in degrees
+        roll: roll angle of the light source in degrees
+        err: boolean to indicate if the error is returned
+    
+    Returns: separation angle between the pointing of the light source and the line of sight
     """
-    nadir = get_nadir(obs_coords, sat_coords, alpha, err = err)
-    gamma = get_gamma(obs_coords, sat_coords, err = err)
+    nadir = get_nadir(obs_coords, ls_coords, alpha, err = err)
+    gamma = get_gamma(obs_coords, ls_coords, err = err)
 
     nadir_val, nadir_err = check_err(nadir, float, tuple)
     gamma_val, gamma_err = check_err(gamma, float, tuple)
