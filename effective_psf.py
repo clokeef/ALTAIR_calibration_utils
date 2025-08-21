@@ -13,17 +13,21 @@ from photutils.psf import EPSFBuilder
 
 from trippy import psf
 
-def photutils_psf(sim, bkg_noise_map, gain, threshold_factor, conv_fwhm, conv_size, source_size):
-    """
+from calibration_utils.utils import downsample
 
-    :param sim:
-    :param bkg_noise_map:
-    :param gain:
-    :param threshold_factor:
-    :param conv_fwhm:
-    :param conv_size:
-    :param source_size:
-    :return:
+def photutils_cat(sim, bkg_noise_map, gain, threshold_factor, conv_fwhm, conv_size, source_size):
+    """
+    determine a catalog of sources in an image using the photutils package
+    Args:
+        sim: streak interface instance of an image
+        bkg_noise_map: noise map associated with the image
+        gain: gain of the image
+        threshold_factor: snr threshold above which stars will be exptracted
+        conv_fwhm: fwhm of the gaussian filter
+        conv_size: size of the gaussian filter
+        source_size: size of the extracted source
+
+    Returns: catalog of extracted sources in the image
     """
     data = np.array(sim.current_image, dtype='float') #the passed data should be background subtracted already
     error_map = calc_total_error(data, bkg_noise_map, effective_gain = gain)
@@ -47,22 +51,28 @@ def catalog_trim(catalog, sim, source_size, snr_thresh, initalpha, initbeta,
                  bgRadius = 20.0, repFact = 3, ftol= 1.49012e-8,
                  crowd_trim = True, snr_trim = True, shape_trim = True):
     """
-    fitter which finds the median fwhm
-    catalog trimmer which trims out sources to close to the edge of the frame,
-    and choose to trim base on an snr threshold, if the frame is crowded, and if the shape is dissimilar from the mean
-    :param catalog: catalog of identified sources
-    :param sim: steak_interface instance from which the sources were identified
-    :param source_size: size of the frame around the source to be extracted
-    :param snr_thresh: snr threshold, sources below this will be trimmed out
-    :param initalpha: initial alpha parameter guess for fitting
-    :param initbeta: initial beta parameter guess for fitting
-    :param bgRadius: radius at which the background is measured, must be larger than your source
-    :param repFact:
-    :param ftol:
-    :param crowd_trim: boolean to indicate if the catalog should be trimmed based on crowding
-    :param snr_trim: boolean to indicate if the catalog should be trimmed based on snr threshold
-    :param shape_trim: boolean to indicate if the catalog should be trimmed based on shape
-    :return: fwhm, original catalog and boolean array indicating which are the good sources
+    trim the catalog based on set parameters:
+    crowd_trim: trim out extracted sources which have sources in the extracted region
+    snr_trim: trim out extracted stars which are below an snr threshold
+    shape_trim: trim out sources whose shape is not consistent with the median source shape
+    based on the catalog trimming from TRIPPy: Python based Trailed Source Photometry
+    uses psf profiles and fitting from TRIPPy
+    Args:
+        catalog: catalog of extracted stars produced by photutils_psf
+        sim: streak interface instance of the image
+        source_size: size of the extracted sources
+        snr_thresh: snr threshold for trimming
+        initalpha: initial alpha guess for fitting the sources to moffat profile
+        initbeta: initial beta guess for fitting the sources to moffat profiles
+        bgRadius: radius from source centre at which the background level is measured
+        repFact: subsampling factor for the moffat profile fitting
+        ftol: fitting tolerance, increasing this number will lead to faster less accurate fitting
+        crowd_trim: boolean which indicates if the ctatlog is trimmed for crowding
+        snr_trim: boolean which indicates if the catalog is trimmed for snr
+        shape_trim: boolean which indicates if the catalog is trimmed for shape
+
+    Returns: the median fwhm of the trimmed catalog, boolean array which indicates good sources,
+            array of parameters of the extracted sources
     """
     #make a list to keep track of which are the good stars
     goodStars = []
@@ -136,12 +146,14 @@ def catalog_trim(catalog, sim, source_size, snr_thresh, initalpha, initbeta,
 
 def extract_star_frames(catalog, good_ind, sim, source_size):
     """
-    extracts the star frames of some size associated with a catalog and a boolean array of those which should be extracted
-    :param catalog: catalog of sources in the image
-    :param good_ind: booean array of the good sources
-    :param sim: streak interface instance where the stars are being extracted from
-    :param source_size: size of the extracted frame around the source
-    :return: returns a 'catalog', which is a photutils EPSFStars instance, of the extracted frames of the sources
+    extracts the star frames of some size associated with a catalog and boolean array which indicates which sources are extracted
+    Args:
+        catalog: catalog of sources in the image
+        good_ind: boolean array of good sources produced by catalog trim
+        sim: streak interface instance from which the sources were identified
+        source_size: size of the extracted frame around the source
+
+    Returns: returns a 'catalog', which is a photutils EPSFStars instance, of the extracted source frames
     """
     good_source = catalog[good_ind]
 
@@ -159,27 +171,32 @@ def extract_star_frames(catalog, good_ind, sim, source_size):
 
 def eff_psf(stars, oversampfac):
     """
-    from a catalog of extracted stars, construct an effective psf given an oversmapling factor
-    :param stars: catalog of extracted stars
-    :param oversampfac: oversampling fator
-    :return: effective psf for the catalog
+    from a catalog of extracted source frames, construct an effect psf
+    Args:
+        stars: EPSFStars catalog of source frames
+        oversampfac: oversampling factor
+
+    Returns: a normalized median epsf for the catalog
     """
     epsf_builder = EPSFBuilder(oversampling=oversampfac, maxiters=3, progress_bar=False)
     epsf, fitted_stars = epsf_builder(stars)
 
+    psf = downsample(epsf.data, factor=oversampfac, normalization='mean')
+    psf = psf / np.sum(psf)
 
-
-    return epsf
+    return psf
 
 def epsf_write_out(epsf, fwhm, sim_hd, file_path, psf_name):
     """
-    write out the effective psf, saving the fwhm in the header
-    :param epsf: 2d array of the effective point spread function
-    :param fwhm: full width half maximum of the profile
-    :param sim_hd: header of the file from which the epsf was produced
-    :param file_path:file path to be saved to
-    :param psf_name:file name to save the psf under
-    :return:
+    write out the effective psf, saving the median fwhm in the header
+    Args:
+        epsf: 2d array of the normalized effective psf
+        fwhm: full width half maximum of the profile
+        sim_hd: header of the file from which the epsf was rpoduced
+        file_path: file path to the directory to write to
+        psf_name: file name to write the psf to
+
+    Returns: prints a message to state the file hs been written out
     """
     sim_hd.append(('FWHM', fwhm))
     hdu = fits.PrimaryHDU(epsf, sim_hd)
@@ -189,11 +206,14 @@ def epsf_write_out(epsf, fwhm, sim_hd, file_path, psf_name):
 
 def epsf_read_in(sim, file_path, psf_name):
     """
-    reads in an existing psf and assigns the psf and fwhm to the streak instance
-    :param sim: streak interface instance
-    :param file_path: file path where the psf is stored
-    :param psf_name: file name of the psf
-    :return: attaches the psf and fwhm to the streak instance, prints a message indicating this has been done
+    reads in the psf and assigns the fwhm and psf to an active streak interface instance
+    Args:
+        sim: streak interface instance
+        file_path: path to the directory which contains the psf
+        psf_name: psf file name
+
+    Returns: assigns the fwhm and psf to the streak interface,
+            prints a message to indicate successful read in
     """
     psf_file = fits.open(file_path + psf_name)
 
@@ -202,4 +222,5 @@ def epsf_read_in(sim, file_path, psf_name):
 
     sim.psf = psf_data
     sim.fwhm = psf_hd['FWHM']
+
     return 'PSF written in'
