@@ -4,14 +4,16 @@ from scipy.signal import convolve2d, fftconvolve
 
 from JG_Streaktools import *
 
+###check_err needs to be modified as right now it only handles floats, tuples, and arrays
 def check_err(var, type1, type2):
     """
-    checks if a given variable has an associated uncertainty, if the initially passed variable has no associated
-    uncertainty, it is returned with an uncertainty of 0
-    :param var: variable to check
-    :param type1: class type for no associated uncertainty
-    :param type2: class type for a variable with associated uncertainty
-    :return: variable value, and uncertainty
+    checks if a given variable has an associated uncertainty, if not an uncertainty of 0 is assigned
+    Args:
+        var: variable to check
+        type1: variable type for no associated uncertainty
+        type2: variable type for associated uncertainty
+
+    Returns: variable value and uncertainty
     """
     if isinstance(var, type1):
         if type1 == float:
@@ -31,9 +33,12 @@ def check_err(var, type1, type2):
 
 def coord_conv(coords):
     """
-    converts a given 2-tuple of coordinates (lat, lon) from deg, arcmin, arcsec, to decimal degrees
-    :param coords: 2-tuple of lists: (latitude [deg, arcmin, arcsec], longitude [deg ,arcmin, arcsec])
-    :return: 2, tuple of the latitude and longitude in decimal degrees
+    converts a 2-tuple of coordinates (lat, lon) from deg,arcmin,arcsec to decimal degrees
+    Args:
+        coords: 2-tuple of lists: (latitude [deg, arcmin, arcsec], longitude [deg, arcmin, arcsec])
+
+    Returns: 2-tuple of latitude and longitude in decimal degrees,
+            if the input (lat, lon) is already in decimal degrees returns a message indicating no conversion occurred
     """
     if not isinstance(coords, tuple):
         print('Please enter your coordinates as a tuple (N,W) of floats, or a tuple of lists of floats')
@@ -48,58 +53,60 @@ def coord_conv(coords):
         return tuple((coords_n, coords_w))
 
 
-def get_geod_err(obs_coords_val, sat_coords_val, obs_coords_err, sat_coords_err):
+def get_geod_err(obs_coords_val, sour_coords_val, obs_coords_err, sat_coords_err):
     """
-    forces through uncertainty in the geodesic calculation given the uncertainty on the coordinates
-    :param obs_coords_val: observer coordinates in decimal degrees
-    :param sat_coords_val: light source coordinates in decimal degrees
-    :param obs_coords_err: uncertainty for observer coordinates in decimal degrees
-    :param sat_coords_err: uncertainty for light source coordinates in decimal degrees
-    :return: max and min geod values given the uncertainty
+    forces through uncertainty in the geodesic distance determination given the uncertainty in the coordinates
+    Args:
+        obs_coords_val: 2-tuple of observer coordinates in decimal degrees
+        sour_coords_val: 2-tuple of source coordinates in decimal degrees
+        obs_coords_err: 2-tuple of observer coordinate uncertainties in decimal degrees
+        sat_coords_err: 2-tuple of source coordinate uncertainties in decimal degrees
+
+    Returns: max and min geodesic distance
     """
-    if obs_coords_val[0] >= sat_coords_val[0]:
-        if obs_coords_val[1] >= sat_coords_val[1]:
+    if obs_coords_val[0] >= sour_coords_val[0]:
+        if obs_coords_val[1] >= sour_coords_val[1]:
             max_obs_coords = (obs_coords_val[0] + obs_coords_err[0], obs_coords_val[1] + obs_coords_err[1])
-            max_sat_coords = (sat_coords_val[0] - sat_coords_err[0], sat_coords_val[1] - sat_coords_err[1])
+            max_sat_coords = (sour_coords_val[0] - sat_coords_err[0], sour_coords_val[1] - sat_coords_err[1])
 
             max_geod = distance.distance(max_obs_coords, max_sat_coords).km
 
             min_obs_coords = (obs_coords_val[0] - obs_coords_err[0], obs_coords_val[1] - obs_coords_err[1])
-            min_sat_coords = (sat_coords_val[0] + sat_coords_err[0], sat_coords_val[1] + sat_coords_err[1])
+            min_sat_coords = (sour_coords_val[0] + sat_coords_err[0], sour_coords_val[1] + sat_coords_err[1])
 
             min_geod = distance.distance(min_obs_coords, min_sat_coords).km
 
-        elif obs_coords_val[1] < sat_coords_val[1]:
+        elif obs_coords_val[1] < sour_coords_val[1]:
             max_obs_coords = (obs_coords_val[0] + obs_coords_err[0], obs_coords_val[1] - obs_coords_err[1])
-            max_sat_coords = (sat_coords_val[0] - sat_coords_err[0], sat_coords_val[1] + sat_coords_err[1])
+            max_sat_coords = (sour_coords_val[0] - sat_coords_err[0], sour_coords_val[1] + sat_coords_err[1])
 
             max_geod = distance.distance(max_obs_coords, max_sat_coords).km
 
             min_obs_coords = (obs_coords_val[0] - obs_coords_err[0], obs_coords_val[1] + obs_coords_err[1])
-            min_sat_coords = (sat_coords_val[0] + sat_coords_err[0], sat_coords_val[1] - sat_coords_err[1])
+            min_sat_coords = (sour_coords_val[0] + sat_coords_err[0], sour_coords_val[1] - sat_coords_err[1])
 
             min_geod = distance.distance(min_obs_coords, min_sat_coords).km
 
-    if obs_coords_val[0] < sat_coords_val[0]:
-        if obs_coords_val[1] >= sat_coords_val[1]:
+    if obs_coords_val[0] < sour_coords_val[0]:
+        if obs_coords_val[1] >= sour_coords_val[1]:
             max_obs_coords = (obs_coords_val[0] - obs_coords_err[0], obs_coords_val[1] + obs_coords_err[1])
-            max_sat_coords = (sat_coords_val[0] + sat_coords_err[0], sat_coords_val[1] - sat_coords_err[1])
+            max_sat_coords = (sour_coords_val[0] + sat_coords_err[0], sour_coords_val[1] - sat_coords_err[1])
 
             max_geod = distance.distance(max_obs_coords, max_sat_coords).km
 
             min_obs_coords = (obs_coords_val[0] + obs_coords_err[0], obs_coords_val[1] - obs_coords_err[1])
-            min_sat_coords = (sat_coords_val[0] - sat_coords_err[0], sat_coords_val[1] + sat_coords_err[1])
+            min_sat_coords = (sour_coords_val[0] - sat_coords_err[0], sour_coords_val[1] + sat_coords_err[1])
 
             min_geod = distance.distance(min_obs_coords, min_sat_coords).km
 
-        elif obs_coords_val[1] < sat_coords_val[1]:
+        elif obs_coords_val[1] < sour_coords_val[1]:
             max_obs_coords = (obs_coords_val[0] - obs_coords_err[0], obs_coords_val[1] - obs_coords_err[1])
-            max_sat_coords = (sat_coords_val[0] + sat_coords_err[0], sat_coords_val[1] + sat_coords_err[1])
+            max_sat_coords = (sour_coords_val[0] + sat_coords_err[0], sour_coords_val[1] + sat_coords_err[1])
 
             max_geod = distance.distance(max_obs_coords, max_sat_coords).km
 
             min_obs_coords = (obs_coords_val[0] + obs_coords_err[0], obs_coords_val[1] + obs_coords_err[1])
-            min_sat_coords = (sat_coords_val[0] - sat_coords_err[0], sat_coords_val[1] - sat_coords_err[1])
+            min_sat_coords = (sour_coords_val[0] - sat_coords_err[0], sour_coords_val[1] - sat_coords_err[1])
 
             min_geod = distance.distance(min_obs_coords, min_sat_coords).km
 
@@ -107,13 +114,13 @@ def get_geod_err(obs_coords_val, sat_coords_val, obs_coords_err, sat_coords_err)
 
 def get_radec_err(x_pix, y_pix, wcs_obj):
     """
-    get the uncertainty in ra and dec from a coordinate transformation from pixel values to ra and dec
-    :param x_pix_val: centre of the streak on the x-axis in the image
-    :param x_pix_err: uncertainty in the x-axis pixel centre
-    :param y_pix_val: centre of the streak on the y-axis in the image
-    :param y_pix_err: uncertainty in the y-axis pixel centre
-    :param wcs_obj: wcs astropy object
-    :return: returns the uncertainty in ra and dec
+    get the uncertainty in ra and dec from a coordinate transformation from pixel values to ra, dec given some uncertatiny in pixel values
+    Args:
+        x_pix: x pixel value of the object
+        y_pix: y pixel value of the object
+        wcs_obj: astropy.wcs WCS object for the image
+
+    Returns: ra uncertainty and dec uncertainty in degrees
     """
     x_pix_val, x_pix_err = check_err(x_pix, float, tuple)
     y_pix_val, y_pix_err = check_err(y_pix, float, tuple)
@@ -137,28 +144,31 @@ def get_radec_err(x_pix, y_pix, wcs_obj):
     return ra_err, dec_err
 
 
-def downsample(im, factor=2, normalization='sum'):
+def downsample(img, factor=2, normalization='sum'):
     """
     This is an adaptation of downsample form JG_streaktools,
     it will take an image and downsample by a given factor.
-    :param im: input image data to be downsampled
-    :param factor: sampling factor, the image will be reduced in size by this factor
-    :param normalization: mode for whether the downsample takes the sum of pixels in the kernel or the median
-    :return: returns a downsampled image
+    Args:
+        img: image to downsample
+        factor: downsample factor, default is 2
+        normalization: normalization mode, default is 'sum'
+
+    Returns:
+        downsampled image
     """
 
     if factor is None or factor < 1:
-        return im
+        return img
 
     if not isinstance(factor, int):
         raise TypeError('Input "factor" must be a scalar integer. ')
 
-    k = np.ones((factor, factor), dtype=im.dtype)
+    k = np.ones((factor, factor), dtype=img.dtype)
     if normalization == "mean":
         k = k / np.sum(k)
     elif normalization != "sum":
         raise KeyError('Input "normalization" must be "mean" or "sum". 'f'Got "{normalization}" instead. ')
 
-    im_conv = convolve2d(im, k, mode="same")
+    im_conv = convolve2d(img, k, mode="same")
 
     return im_conv[factor - 1:: factor, factor - 1:: factor]
