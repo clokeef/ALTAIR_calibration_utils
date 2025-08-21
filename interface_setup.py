@@ -1,5 +1,3 @@
-#import the necessary packages
-
 #import photutils for background estimation and psf finding
 from photutils.background import Background2D, MedianBackground
 
@@ -9,11 +7,15 @@ from JG_Streaktools import *
 
 def background(data, bkg_scale, bkg_sub, verbose=True):
     """
-    Determines the background map for a fits image
-    :param data: array from a fits file of the scientific image
-    :param bkg_scale: scale of the background map
-    :param bkg_sub: boolean, determines if the background map is subtracted
-    :return: data, either background subbed or not, and the rms of the returned data
+    determine the background map, the median background for a fits image and the background noise map and median noise
+    the returned image can be either background subtracted or not and the returned background values are assocaited with the returned image
+    Args:
+        data: data array of an image
+        bkg_scale: scale of the background map
+        bkg_sub: boolean to determine if the background map is subtracted off the image data
+        verbose: boolean to determine if the background median and noise is printed out
+
+    Returns: image array, median background count, background noise map, median background noise
     """
     # estimate the background map
     bkg_estimator = MedianBackground()
@@ -41,22 +43,20 @@ def background(data, bkg_scale, bkg_sub, verbose=True):
         return data, bkg.background_median, bkg.background_rms, bkg.background_rms_median
 
 
-def local_bkg(x, y, L, theta, file_path, file_name, bkg_scale):
+def local_bkg(data, x, y, L, theta, bkg_scale):
     """
+    determine the background in a small section around the relevant streak
+    used for determining a background estimate for streak fitting
+    Args:
+        data: data array of an image
+        x: start of the streak
+        y: start of the streak
+        L: length of the streak
+        theta: angle of the streak clockwise from horizontal
+        bkg_scale: scale of the background map
 
-    :param x: start of the streak
-    :param y: start of the streak
-    :param L: length of the streak
-    :param theta: angle of the streak clockwise from horizontal
-    :param data: data image
-    :param bkg_scale: background scale
-    :return: the median backgorund level near the streak
+    Returns: the median background level in the region near the streak
     """
-    # read in our image file
-    f = fits.open(file_path + file_name)
-    hd = f[0].header
-    data = f[0].data
-
     # find x2, y2
     # handle the horizontal and vertical cases
     if round(np.sin(theta)) == 0:
@@ -97,14 +97,20 @@ def local_bkg(x, y, L, theta, file_path, file_name, bkg_scale):
 
     return clip_bkgmed, clip_bkgnoise
 
-def sim_setup(file_path, file_name, bkg_scale, table = True, bkg_sub=True, verbose=True):
+def sim_setup(file_path, file_name, bkg_scale, corr = True, bkg_sub=True, verbose=True):
     """
-    initializes and updates a streak_interface instance
-    :param file_path: float of the path to the file
-    :param file_name: float of the file_name
-    :param bkg_scale: scale of the bkg map calculation
-    :param bkg_sub: boolean to determine in the sim is bkg subtracted
-    :return: streak_interface instance with updated im_noise, VM, psf, fwhm properties
+    initializes a streak_interface instance
+    Args:
+        file_path: path to the file directory
+        file_name: file name
+        bkg_scale: scale used for background estimation
+        table: boolean to indicate if the fits file has an associated correlation table
+        bkg_sub: boolean to indicate if the background is subtracted off during setup
+        verbose: boolean to indicate if print statements are printed
+
+    Returns:
+        streak_interface instance with updated im_noise, VM properties, image header, median background, and the determined noise map
+        if corr = True, the correlation table is also returned
     """
     #read in our image file
     f = fits.open(file_path + file_name)
@@ -125,10 +131,11 @@ def sim_setup(file_path, file_name, bkg_scale, table = True, bkg_sub=True, verbo
         sim1.VM = np.max(data)
         sim1.im_noise = im_noise
 
-    if table == True:
+    if corr == True:
         corr = f
 
         return sim1, hd, corr, bkg_med, noise_map
+
 
     else:
         return sim1, hd, bkg_med, noise_map
